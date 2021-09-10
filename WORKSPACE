@@ -489,8 +489,8 @@ go_repository(
 go_repository(
     name = "com_github_opensourceways_robot_gitee_plugin_lib",
     importpath = "github.com/opensourceways/robot-gitee-plugin-lib",
-    sum = "h1:UP44yYoGQCgm4TwPoLud8Lj8HQCc2IYoWQoC5So1Ehk=",
-    version = "v0.0.0-20210910080649-b8257134127a",
+    sum = "h1:mujMt2YSCok+t5l3SdkGZTNxqM7kji6dz23Cger0MoQ=",
+    version = "v0.0.0-20210910093419-1a08672bb28e",
 )
 
 go_repository(
