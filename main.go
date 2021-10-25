@@ -6,11 +6,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/opensourceways/robot-gitee-plugin-lib/config"
-	"github.com/opensourceways/robot-gitee-plugin-lib/interrupts"
-	"github.com/opensourceways/robot-gitee-plugin-lib/logrusutil"
-	liboptions "github.com/opensourceways/robot-gitee-plugin-lib/options"
-	"github.com/opensourceways/robot-gitee-plugin-lib/secret"
+	"github.com/opensourceways/community-robot-lib/config"
+	"github.com/opensourceways/community-robot-lib/interrupts"
+	"github.com/opensourceways/community-robot-lib/logrusutil"
+	liboptions "github.com/opensourceways/community-robot-lib/options"
+	"github.com/opensourceways/community-robot-lib/secret"
 	"github.com/sirupsen/logrus"
 )
 

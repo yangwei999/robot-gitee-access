@@ -1,5 +1,42 @@
 ## General rules
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+### rules_docker
+http_archive(
+    name = "io_bazel_rules_docker",
+    sha256 = "4521794f0fba2e20f3bf15846ab5e01d5332e587e9ce81629c7f96c793bb7036",
+    strip_prefix = "rules_docker-0.14.4",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.14.4/rules_docker-v0.14.4.tar.gz"],
+)
+
+load("@io_bazel_rules_docker//repositories:repositories.bzl", _container_repositories = "repositories")
+
+_container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", _container_deps = "deps")
+
+_container_deps()
+
+load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", _pip_deps = "pip_deps")
+
+_pip_deps()
+
+load("@io_bazel_rules_docker//go:image.bzl", _go_repositories = "repositories")
+
+_go_repositories()
+
+## operating_system
+git_repository(
+    name = "github_opensourceways_community_robot_lib",
+    remote = "git@github.com:opensourceways/community-robot-lib.git",
+    commit = "a713469ab433890353db7fce3f9b8f7887b729a9",
+    shallow_since = "1634896045 +0800",
+)
+
+load("@github_opensourceways_community_robot_lib//:image.bzl", "operating_system")
+
+operating_system()
 
 ## rules_go
 http_archive(
@@ -487,10 +524,10 @@ go_repository(
 )
 
 go_repository(
-    name = "com_github_opensourceways_robot_gitee_plugin_lib",
-    importpath = "github.com/opensourceways/robot-gitee-plugin-lib",
-    sum = "h1:mujMt2YSCok+t5l3SdkGZTNxqM7kji6dz23Cger0MoQ=",
-    version = "v0.0.0-20210910093419-1a08672bb28e",
+    name = "com_github_opensourceways_community_robot_lib",
+    importpath = "github.com/opensourceways/community-robot-lib",
+    sum = "h1:eMyzt+zdYMq3bv6QjKfiQTNVN4lYDe/gnvJhdIclbUg=",
+    version = "v0.0.0-20211025062546-1748f8a85767",
 )
 
 go_repository(
