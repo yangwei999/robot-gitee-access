@@ -11,6 +11,7 @@ import (
 	"github.com/opensourceways/community-robot-lib/logrusutil"
 	liboptions "github.com/opensourceways/community-robot-lib/options"
 	"github.com/opensourceways/community-robot-lib/secret"
+	"github.com/opensourceways/community-robot-lib/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,8 +52,8 @@ func main() {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
 
-	agent := demuxConfigAgent{agent: &configAgent}
-	agent.Start()
+	agent := demuxConfigAgent{agent: &configAgent, t: utils.NewTimer()}
+	agent.start()
 
 	secretAgent := new(secret.Agent)
 	if err := secretAgent.Start([]string{o.hmacSecretFile}); err != nil {
@@ -71,10 +72,17 @@ func main() {
 	defer interrupts.WaitForGracefulShutdown()
 
 	interrupts.OnInterrupt(func() {
-		agent.Stop()
+		// agent depends on configAgent, so stop agent first.
+		agent.stop()
+		logrus.Info("demux stopped")
+
 		configAgent.Stop()
+		logrus.Info("config agent stopped")
+
 		secretAgent.Stop()
-		d.Wait()
+		logrus.Info("secret stopped")
+
+		d.wait()
 	})
 
 	// Return 200 on / for health checks.
