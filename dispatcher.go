@@ -92,9 +92,8 @@ func (d *dispatcher) dispatch(eventType string, payload []byte, h http.Header, l
 	}
 
 	l = l.WithFields(logrus.Fields{
-		"org":        org,
-		"repo":       repo,
-		"event type": eventType,
+		"org":  org,
+		"repo": repo,
 	})
 
 	endpoints := d.agent.getEndpoints(org, repo, eventType)
