@@ -2,7 +2,7 @@ This is the access layer to recieve the webhook events of Gitee and dispatch the
 
 ![component](component.svg)
 
-# How to run it
+# How to run
 - Install Bazel
 
 It uses Bazel to compile and build/push image, so it should install it first.
