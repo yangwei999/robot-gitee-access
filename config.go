@@ -7,6 +7,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+const (
+	pluginsGroupNamePrefix = "pg-"
+	repoGroupNamePrefix    = "rg-"
+)
+
 type configuration struct {
 	Config accessConfig `json:"access,omitempty"`
 }
@@ -21,26 +26,55 @@ type accessConfig struct {
 	// Plugins is a map of repositories (eg "k/k") to lists of plugin names.
 	RepoPlugins map[string][]string `json:"repo_plugins,omitempty"`
 
+	// RepoGroup is a group of repos.
+	RepoGroup map[string][]string `json:"repo_group,omitempty"`
+
+	// PluginsGroup is a group of plugins.
+	PluginsGroup map[string][]string `json:"plugins_group,omitempty"`
+
 	// Plugins is a list available plugins.
 	Plugins []pluginConfig `json:"plugins,omitempty"`
 }
 
 func (a accessConfig) validate() error {
+	pluginsTotal := sets.NewString()
 	for i := range a.Plugins {
 		if err := a.Plugins[i].validate(); err != nil {
 			return err
 		}
+		pluginsTotal.Insert(a.Plugins[i].Name)
 	}
 
-	ps := make([]string, len(a.Plugins))
-	for i := range a.Plugins {
-		ps[i] = a.Plugins[i].Name
+	groupsTotal := sets.NewString()
+	for k := range a.PluginsGroup {
+		if !a.isPluginsGroupName(k) {
+			return fmt.Errorf("%s:plugins group name must be start with %s", k, pluginsGroupNamePrefix)
+		}
+		groupsTotal.Insert(k)
 	}
 
-	total := sets.NewString(ps...)
+	for k := range a.RepoGroup {
+		if !a.isRepoGroupName(k) {
+			return fmt.Errorf("%s:repo group name must be start with %s", k, repoGroupNamePrefix)
+		}
+	}
 
 	for k, item := range a.RepoPlugins {
-		if v := sets.NewString(item...).Difference(total); v.Len() != 0 {
+		pluginsGroup, plugins := a.separateItem(item)
+
+		if v := pluginsGroup.Difference(groupsTotal); v.Len() != 0 {
+			return fmt.Errorf(
+				"%s: unknown plugins_group(%s) are set", k,
+				strings.Join(v.UnsortedList(), ", "),
+			)
+		}
+
+		// validate the plugins specified in group
+		for gn, _ := range pluginsGroup {
+			plugins.Insert(a.PluginsGroup[gn]...)
+		}
+
+		if v := plugins.Difference(pluginsTotal); v.Len() != 0 {
 			return fmt.Errorf(
 				"%s: unknown plugins(%s) are set", k,
 				strings.Join(v.UnsortedList(), ", "),
@@ -49,6 +83,28 @@ func (a accessConfig) validate() error {
 	}
 
 	return nil
+}
+
+func (a accessConfig) separateItem(item []string) (groups, plugins sets.String) {
+	groups = sets.NewString()
+	plugins = sets.NewString()
+	for _, v := range item {
+		if a.isPluginsGroupName(v) {
+			groups.Insert(v)
+		} else {
+			plugins.Insert(v)
+		}
+	}
+
+	return
+}
+
+func (a accessConfig) isPluginsGroupName(name string) bool {
+	return strings.HasPrefix(name, pluginsGroupNamePrefix)
+}
+
+func (a accessConfig) isRepoGroupName(name string) bool {
+	return strings.HasPrefix(name, repoGroupNamePrefix)
 }
 
 type eventsDemux map[string][]string
@@ -79,9 +135,9 @@ func (a accessConfig) getDemux() map[string]eventsDemux {
 		plugins[a.Plugins[i].Name] = i
 	}
 
-	r := make(map[string]eventsDemux)
-	rp := a.RepoPlugins
+	rp := a.changeRepoGroup()
 
+	r := make(map[string]eventsDemux)
 	for k, ps := range rp {
 		events, ok := r[k]
 		if !ok {
@@ -94,7 +150,9 @@ func (a accessConfig) getDemux() map[string]eventsDemux {
 			ps = append(ps, rp[org]...)
 		}
 
-		for _, p := range ps {
+		nps := a.changePluginsGroup(ps)
+
+		for _, p := range nps {
 			if i, ok := plugins[p]; ok {
 				updateDemux(&a.Plugins[i], events)
 			}
@@ -102,6 +160,37 @@ func (a accessConfig) getDemux() map[string]eventsDemux {
 	}
 
 	return r
+}
+
+// changeRepoGroup change repo group name to repo list.
+func (a accessConfig) changeRepoGroup() eventsDemux {
+	nrp := make(eventsDemux)
+	for k, ps := range a.RepoPlugins {
+		if a.isRepoGroupName(k) {
+			for _, v := range a.RepoGroup[k] {
+				nrp[v] = append(nrp[v], ps...)
+			}
+		} else {
+			nrp[k] = append(nrp[k], ps...)
+		}
+	}
+
+	return nrp
+}
+
+// changePluginsGroup change plugins group name to plugins list,
+// and ensure all elements are unique.
+func (a accessConfig) changePluginsGroup(ps []string) []string {
+	nps := sets.NewString()
+	for _, p := range ps {
+		if a.isPluginsGroupName(p) {
+			nps.Insert(a.PluginsGroup[p]...)
+		} else {
+			nps.Insert(p)
+		}
+	}
+
+	return nps.UnsortedList()
 }
 
 type pluginConfig struct {
