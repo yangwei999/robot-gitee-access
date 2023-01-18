@@ -7,6 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+const repoSpliter = "/"
+
 type configuration struct {
 	Config accessConfig `json:"access,omitempty"`
 }
@@ -19,31 +21,25 @@ func (c *configuration) SetDefault() {}
 
 type accessConfig struct {
 	// Plugins is a map of repositories (eg "k/k") to lists of plugin names.
-	RepoPlugins map[string][]string `json:"repo_plugins,omitempty"`
+	RepoPlugins []map[string][]string `json:"repo_plugins,omitempty"`
 
 	// Plugins is a list available plugins.
 	Plugins []pluginConfig `json:"plugins,omitempty"`
 }
 
 func (a accessConfig) validate() error {
+	ps := sets.NewString()
 	for i := range a.Plugins {
 		if err := a.Plugins[i].validate(); err != nil {
 			return err
 		}
+		ps.Insert(a.Plugins[i].Name)
 	}
 
-	ps := make([]string, len(a.Plugins))
-	for i := range a.Plugins {
-		ps[i] = a.Plugins[i].Name
-	}
-
-	total := sets.NewString(ps...)
-
-	for k, item := range a.RepoPlugins {
-		if v := sets.NewString(item...).Difference(total); v.Len() != 0 {
+	for _, item := range a.RepoPlugins {
+		if v := sets.NewString(item["plugins"]...).Difference(ps); v.Len() != 0 {
 			return fmt.Errorf(
-				"%s: unknown plugins(%s) are set", k,
-				strings.Join(v.UnsortedList(), ", "),
+				"unknown plugins(%s) are set", strings.Join(v.UnsortedList(), ", "),
 			)
 		}
 	}
@@ -66,10 +62,10 @@ func updateDemux(p *pluginConfig, d eventsDemux) {
 }
 
 func orgOfRepo(repo string) string {
-	spliter := "/"
-	if strings.Contains(repo, spliter) {
-		return strings.Split(repo, spliter)[0]
+	if strings.Contains(repo, repoSpliter) {
+		return strings.Split(repo, repoSpliter)[0]
 	}
+
 	return ""
 }
 
@@ -80,28 +76,54 @@ func (a accessConfig) getDemux() map[string]eventsDemux {
 	}
 
 	r := make(map[string]eventsDemux)
-	rp := a.RepoPlugins
+	orgPlugins := a.getOrgPlugins()
 
-	for k, ps := range rp {
-		events, ok := r[k]
-		if !ok {
-			events = make(eventsDemux)
-			r[k] = events
-		}
+	for _, rps := range a.RepoPlugins {
+		for _, repo := range rps["repos"] {
+			events, ok := r[repo]
+			if !ok {
+				events = make(eventsDemux)
+				r[repo] = events
+			}
 
-		// inherit the config of org if k is a repo.
-		if org := orgOfRepo(k); org != "" {
-			ps = append(ps, rp[org]...)
-		}
+			ps := a.appendOrgPlugins(orgPlugins, repo, rps["plugins"])
 
-		for _, p := range ps {
-			if i, ok := plugins[p]; ok {
-				updateDemux(&a.Plugins[i], events)
+			for _, p := range ps {
+				if i, ok := plugins[p]; ok {
+					updateDemux(&a.Plugins[i], events)
+				}
 			}
 		}
 	}
 
 	return r
+}
+
+func (a accessConfig) getOrgPlugins() map[string][]string {
+	org := make(map[string][]string)
+
+	for _, rps := range a.RepoPlugins {
+		for _, rp := range rps["repos"] {
+			if !strings.Contains(rp, repoSpliter) {
+				org[rp] = rps["plugins"]
+			}
+		}
+	}
+
+	return org
+}
+
+func (a accessConfig) appendOrgPlugins(cps map[string][]string, repo string, ps []string) []string {
+	org := orgOfRepo(repo)
+	if org == "" {
+		return ps
+	}
+
+	if p, ok := cps[org]; ok {
+		ps = append(ps, p...)
+	}
+
+	return ps
 }
 
 type pluginConfig struct {
