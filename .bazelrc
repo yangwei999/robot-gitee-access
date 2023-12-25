@@ -1,3 +1,0 @@
-# populate env used for stamping builds etc
-build --workspace_status_command=./publish/command_status.sh
-run --workspace_status_command=./publish/command_status.sh
